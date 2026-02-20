@@ -16,9 +16,9 @@
       "package": "com.yacksweb.listai",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/icon.png",
-        "backgroundImage": "./assets/icon.png",
-        "monochromeImage": "./assets/icon.png"
+        "foregroundImage": "./assets/app-icon.png",
+        "backgroundImage": "./assets/app-icon.png",
+        "monochromeImage": "./assets/app-icon.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
