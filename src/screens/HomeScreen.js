@@ -7,6 +7,7 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   FlatList,
   Image,
   Modal,
@@ -23,6 +24,7 @@ import { getAllListings } from '../utils/database';
 import { COLORS, SIZES } from '../utils/theme';
 
 const TAB_BAR_HEIGHT = 65; // match your bottom tab height
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function HomeScreen({ navigation, route }) {
   const [history, setHistory] = useState([]);
@@ -30,7 +32,6 @@ export default function HomeScreen({ navigation, route }) {
   const [selected, setSelected] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
 
-  // Refresh recent listings every time the screen is focused
   useFocusEffect(
     useCallback(() => {
       const loadData = async () => {
@@ -39,7 +40,7 @@ export default function HomeScreen({ navigation, route }) {
         if (!listings || listings.length === 0) {
           Alert.alert('Info', 'No listings found.');
         }
-        setHistory(listings.slice(0, 4)); // only 4 on home
+        setHistory(listings.slice(0, 4));
         setLoading(false);
       };
       loadData();
@@ -56,7 +57,6 @@ export default function HomeScreen({ navigation, route }) {
     setModalVisible(false);
   };
 
-  // ✅ Proper CSV escape function
   const escapeCSV = (value) => {
     if (!value) return '';
     const stringValue = String(value);
@@ -66,7 +66,6 @@ export default function HomeScreen({ navigation, route }) {
     return stringValue;
   };
 
-  // Generate CSV from the selected listing
   const exportToCSV = async () => {
     if (!selected) return;
 
@@ -134,12 +133,10 @@ export default function HomeScreen({ navigation, route }) {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
       <View style={styles.container}>
-        {/* App Logo */}
         <View style={styles.logoSection}>
           <Image source={require('../../assets/icon.png')} style={styles.logo} />
         </View>
 
-        {/* Quick Actions */}
         <View style={styles.quickActions}>
           <Button
             title="Upload Image"
@@ -155,7 +152,6 @@ export default function HomeScreen({ navigation, route }) {
           />
         </View>
 
-        {/* Recent Listings Header */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Recent Listings</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Listings')}>
@@ -163,7 +159,6 @@ export default function HomeScreen({ navigation, route }) {
           </TouchableOpacity>
         </View>
 
-        {/* Listings List */}
         {loading ? (
           <View style={styles.centerContent}>
             <ActivityIndicator size="large" color={COLORS.primary} />
@@ -183,61 +178,65 @@ export default function HomeScreen({ navigation, route }) {
           />
         )}
 
-        {/* Listing Modal */}
-        <Modal visible={modalVisible} animationType="slide" onRequestClose={closeModal}>
-          <ScrollView style={styles.modalContainer}>
-            <TouchableOpacity onPress={closeModal} style={styles.closeButton}>
-              <Text style={styles.closeText}>✕ Close</Text>
-            </TouchableOpacity>
-
-            {selected && (
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>{selected.title}</Text>
-                <Text style={styles.modalPlatform}>{selected.platform}</Text>
-
-                <Text style={styles.modalLabel}>Price</Text>
-                <Text style={styles.modalText}>{selected.price ? `${selected.price}` : '—'}</Text>
-
-                <Text style={styles.modalLabel}>Description</Text>
-                <Text style={styles.modalText}>{selected.description}</Text>
-
-                <Text style={styles.modalLabel}>Keywords</Text>
-                <View style={styles.keywordsContainer}>
-                  {Array.isArray(selected.keywords)
-                    ? selected.keywords.map((kw, idx) => (
-                        <View key={idx} style={styles.keywordTag}>
-                          <Text style={styles.keywordText}>{kw}</Text>
-                        </View>
-                      ))
-                    : selected.keywords &&
-                      JSON.parse(selected.keywords).map((kw, idx) => (
-                        <View key={idx} style={styles.keywordTag}>
-                          <Text style={styles.keywordText}>{kw}</Text>
-                        </View>
-                      ))}
-                </View>
-
-                {/* Download CSV Button */}
-                <TouchableOpacity style={styles.downloadButton} onPress={exportToCSV}>
-                  <Text style={styles.downloadButtonText}>📥 Share File</Text>
+        {/* Responsive Listing Modal */}
+        <Modal
+          visible={modalVisible}
+          animationType="fade"
+          transparent
+          onRequestClose={closeModal}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.responsiveModal}>
+              <ScrollView contentContainerStyle={styles.modalContent}>
+                <TouchableOpacity onPress={closeModal} style={styles.closeButton}>
+                  <Text style={styles.closeText}>✕ Close</Text>
                 </TouchableOpacity>
-              </View>
-            )}
-          </ScrollView>
+
+                {selected && (
+                  <>
+                    <Text style={styles.modalTitle}>{selected.title}</Text>
+                    <Text style={styles.modalPlatform}>{selected.platform}</Text>
+
+                    <Text style={styles.modalLabel}>Price</Text>
+                    <Text style={styles.modalText}>{selected.price ? `${selected.price}` : '—'}</Text>
+
+                    <Text style={styles.modalLabel}>Description</Text>
+                    <Text style={styles.modalText}>{selected.description}</Text>
+
+                    <Text style={styles.modalLabel}>Keywords</Text>
+                    <View style={styles.keywordsContainer}>
+                      {Array.isArray(selected.keywords)
+                        ? selected.keywords.map((kw, idx) => (
+                            <View key={idx} style={styles.keywordTag}>
+                              <Text style={styles.keywordText}>{kw}</Text>
+                            </View>
+                          ))
+                        : selected.keywords &&
+                          JSON.parse(selected.keywords).map((kw, idx) => (
+                            <View key={idx} style={styles.keywordTag}>
+                              <Text style={styles.keywordText}>{kw}</Text>
+                            </View>
+                          ))}
+                    </View>
+
+                    <TouchableOpacity style={styles.downloadButton} onPress={exportToCSV}>
+                      <Text style={styles.downloadButtonText}>📥 Share File</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </ScrollView>
+            </View>
+          </View>
         </Modal>
       </View>
     </SafeAreaView>
   );
 }
 
-// --- Styles (updated with bottom padding) ---
+// --- Styles ---
 const styles = StyleSheet.create({
   safeArea: { flex: 1, paddingTop: 5, backgroundColor: COLORS.background },
-  container: {
-    flex: 1,
-    paddingHorizontal: SIZES.screenPadding,
-    paddingTop: 10
-  },
+  container: { flex: 1, paddingHorizontal: SIZES.screenPadding, paddingTop: 10 },
   logoSection: { alignItems: 'center', marginBottom: 24 },
   logo: { width: 80, height: 80, borderRadius: 20 },
   quickActions: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 28 },
@@ -256,10 +255,25 @@ const styles = StyleSheet.create({
   listingDate: { fontSize: 12, color: COLORS.text + '80' },
   centerContent: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 60 },
   emptyText: { fontSize: 16, color: COLORS.text + '80' },
-  modalContainer: { flex: 1, backgroundColor: COLORS.background },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  responsiveModal: {
+    width: '100%',
+    maxHeight: SCREEN_HEIGHT * 0.8,
+    backgroundColor: COLORS.background,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  modalContent: { padding: 16 },
   closeButton: { padding: 12, backgroundColor: COLORS.primary, alignItems: 'center' },
   closeText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  modalContent: { padding: 16, paddingTop: 12 },
   modalTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: 6 },
   modalPlatform: { fontSize: 16, color: COLORS.primary, marginBottom: 6 },
   modalLabel: { fontSize: 14, fontWeight: '600', color: COLORS.primary, marginTop: 12 },
@@ -267,12 +281,6 @@ const styles = StyleSheet.create({
   keywordsContainer: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 6 },
   keywordTag: { backgroundColor: COLORS.primary + '20', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginRight: 8, marginBottom: 8 },
   keywordText: { fontSize: 12, color: COLORS.primary },
-  downloadButton: {
-    backgroundColor: COLORS.success,
-    borderRadius: SIZES.buttonRadius,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 20,
-  },
+  downloadButton: { backgroundColor: COLORS.success, borderRadius: SIZES.buttonRadius, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
   downloadButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 });

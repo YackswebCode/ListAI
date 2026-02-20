@@ -6,6 +6,7 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   FlatList,
   Modal,
   ScrollView,
@@ -17,7 +18,8 @@ import {
 import { getAllListings } from '../utils/database';
 import { COLORS, SIZES } from '../utils/theme';
 
-const TAB_BAR_HEIGHT = 65; // match your bottom tab height
+const TAB_BAR_HEIGHT = 65;
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function ListingsScreen() {
   const [listings, setListings] = useState([]);
@@ -25,7 +27,6 @@ export default function ListingsScreen() {
   const [selected, setSelected] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
 
-  // Refresh data every time the screen is focused
   useFocusEffect(
     useCallback(() => {
       const loadListings = async () => {
@@ -51,7 +52,6 @@ export default function ListingsScreen() {
     setModalVisible(false);
   };
 
-  // ✅ Proper CSV escape function
   const escapeCSV = (value) => {
     if (!value) return '';
     const stringValue = String(value);
@@ -144,41 +144,56 @@ export default function ListingsScreen() {
         />
       )}
 
-      <Modal visible={modalVisible} animationType="slide" onRequestClose={closeModal}>
-        <ScrollView style={styles.modalContainer}>
-          <TouchableOpacity onPress={closeModal} style={styles.closeButton}>
-            <Text style={styles.closeText}>✕ Close</Text>
-          </TouchableOpacity>
-
-          {selected && (
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>{selected.title}</Text>
-              <Text style={styles.modalPlatform}>{selected.platform}</Text>
-
-              <Text style={styles.modalLabel}>Price</Text>
-              <Text style={styles.modalText}>{selected.price || '—'}</Text>
-
-              <Text style={styles.modalLabel}>Description</Text>
-              <Text style={styles.modalText}>{selected.description}</Text>
-
-              <Text style={styles.modalLabel}>Keywords</Text>
-              <View style={styles.keywordsContainer}>
-                {(Array.isArray(selected.keywords)
-                  ? selected.keywords
-                  : JSON.parse(selected.keywords || '[]')
-                ).map((kw, idx) => (
-                  <View key={idx} style={styles.keywordTag}>
-                    <Text style={styles.keywordText}>{kw}</Text>
-                  </View>
-                ))}
-              </View>
-
-              <TouchableOpacity style={styles.downloadButton} onPress={exportToCSV}>
-                <Text style={styles.downloadButtonText}>📥 Share File</Text>
+      {/* ✅ Responsive Modal */}
+      <Modal
+        visible={modalVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.responsiveModal}>
+            <ScrollView contentContainerStyle={styles.modalContent}>
+              <TouchableOpacity onPress={closeModal} style={styles.closeButton}>
+                <Text style={styles.closeText}>✕ Close</Text>
               </TouchableOpacity>
-            </View>
-          )}
-        </ScrollView>
+
+              {selected && (
+                <>
+                  <Text style={styles.modalTitle}>{selected.title}</Text>
+                  <Text style={styles.modalPlatform}>{selected.platform}</Text>
+
+                  <Text style={styles.modalLabel}>Price</Text>
+                  <Text style={styles.modalText}>{selected.price || '—'}</Text>
+
+                  <Text style={styles.modalLabel}>Description</Text>
+                  <Text style={styles.modalText}>{selected.description}</Text>
+
+                  <Text style={styles.modalLabel}>Keywords</Text>
+                  <View style={styles.keywordsContainer}>
+                    {(Array.isArray(selected.keywords)
+                      ? selected.keywords
+                      : JSON.parse(selected.keywords || '[]')
+                    ).map((kw, idx) => (
+                      <View key={idx} style={styles.keywordTag}>
+                        <Text style={styles.keywordText}>{kw}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.downloadButton}
+                    onPress={exportToCSV}
+                  >
+                    <Text style={styles.downloadButtonText}>
+                      📥 Share File
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -188,9 +203,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingTop: 15,
-    backgroundColor: COLORS.background
+    backgroundColor: COLORS.background,
   },
+
   listContent: { padding: SIZES.screenPadding },
+
   card: {
     backgroundColor: COLORS.card,
     borderRadius: SIZES.cardRadius,
@@ -198,24 +215,95 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+
   cardContent: { padding: 12 },
-  cardTitle: { fontSize: 16, fontWeight: '600', color: COLORS.text, marginBottom: 4 },
-  cardPlatform: { fontSize: 14, color: COLORS.primary, marginBottom: 4 },
-  cardPrice: { fontSize: 16, fontWeight: '700', color: COLORS.success, marginBottom: 4 },
+
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+
+  cardPlatform: {
+    fontSize: 14,
+    color: COLORS.primary,
+    marginBottom: 4,
+  },
+
+  cardPrice: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.success,
+    marginBottom: 4,
+  },
+
   cardDate: { fontSize: 12, color: COLORS.text + '80' },
+
   loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText: { color: COLORS.text + '80', fontSize: 16 },
 
-  modalContainer: { flex: 1, backgroundColor: COLORS.background },
-  closeButton: { padding: 12, backgroundColor: COLORS.primary, alignItems: 'center' },
-  closeText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  // ✅ Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+
+  responsiveModal: {
+    width: '100%',
+    maxHeight: SCREEN_HEIGHT * 0.8,
+    backgroundColor: COLORS.background,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+
   modalContent: { padding: 16 },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: 6 },
-  modalPlatform: { fontSize: 16, color: COLORS.primary, marginBottom: 6 },
-  modalLabel: { fontSize: 14, fontWeight: '600', color: COLORS.primary, marginTop: 12 },
-  modalText: { fontSize: 14, color: COLORS.text, lineHeight: 20, marginTop: 4 },
-  keywordsContainer: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 6 },
+
+  closeButton: {
+    padding: 12,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+  },
+
+  closeText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 6,
+  },
+
+  modalPlatform: {
+    fontSize: 16,
+    color: COLORS.primary,
+    marginBottom: 6,
+  },
+
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary,
+    marginTop: 12,
+  },
+
+  modalText: {
+    fontSize: 14,
+    color: COLORS.text,
+    lineHeight: 20,
+    marginTop: 4,
+  },
+
+  keywordsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 6,
+  },
+
   keywordTag: {
     backgroundColor: COLORS.primary + '20',
     borderRadius: 16,
@@ -224,7 +312,9 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginBottom: 8,
   },
+
   keywordText: { fontSize: 12, color: COLORS.primary },
+
   downloadButton: {
     backgroundColor: COLORS.success,
     borderRadius: SIZES.buttonRadius,
@@ -232,5 +322,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 20,
   },
-  downloadButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+
+  downloadButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
