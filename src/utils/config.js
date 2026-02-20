@@ -1,5 +1,5 @@
 // src/utils/config.js
-export const GEMINI_API_KEY = 'AIzaSyDtUta7knlwyksz2zs-Hz5I6q4Li0Kre3I'; // Get from https://aistudio.google.com/
+export const GEMINI_API_KEY = 'AIzaSyCznrReud9nXSJl39eElT-4RcZ6am5yCb4'; // Get from https://aistudio.google.com/
 
 // src/utils/config.js
 

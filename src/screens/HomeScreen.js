@@ -1,6 +1,9 @@
 // src/screens/HomeScreen.js
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -16,29 +19,32 @@ import {
   View,
 } from 'react-native';
 import Button from '../components/Button';
-import { getAllListings } from '../utils/database'; // <-- use database.js
+import { getAllListings } from '../utils/database';
 import { COLORS, SIZES } from '../utils/theme';
 
+const TAB_BAR_HEIGHT = 65; // match your bottom tab height
+
 export default function HomeScreen({ navigation, route }) {
-  const user = route.params?.user || { name: 'Guest', email: '' };
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
 
-  // Load recent listings
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      const listings = await getAllListings();
-      if (!listings || listings.length === 0) {
-        Alert.alert('Info', 'No listings found.');
-      }
-      setHistory(listings.slice(0, 4)); // only 4 on home
-      setLoading(false);
-    };
-    loadData();
-  }, []);
+  // Refresh recent listings every time the screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      const loadData = async () => {
+        setLoading(true);
+        const listings = await getAllListings();
+        if (!listings || listings.length === 0) {
+          Alert.alert('Info', 'No listings found.');
+        }
+        setHistory(listings.slice(0, 4)); // only 4 on home
+        setLoading(false);
+      };
+      loadData();
+    }, [])
+  );
 
   const openListing = (item) => {
     setSelected(item);
@@ -50,40 +56,87 @@ export default function HomeScreen({ navigation, route }) {
     setModalVisible(false);
   };
 
-  const renderListingItem = ({ item }) => {
-    const imageUri = item.imagepath ? `https://listai-backend.onrender.com${item.imagepath}` : null;
-
-    return (
-      <TouchableOpacity style={styles.listingCard} onPress={() => openListing(item)}>
-        {imageUri && (
-          <Image
-            source={{ uri: imageUri }}
-            style={styles.listingImage}
-            resizeMode="cover"
-          />
-        )}
-        <View style={styles.listingContent}>
-          <Text style={styles.listingTitle} numberOfLines={1}>{item.title}</Text>
-          <Text style={styles.listingPlatform}>{item.platform}</Text>
-          <Text style={styles.listingPrice}>{item.price ? `${item.price}` : ''}</Text>
-          <Text style={styles.listingDate}>{new Date(item.createdat).toLocaleString()}</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={COLORS.text} />
-      </TouchableOpacity>
-    );
+  // ✅ Proper CSV escape function
+  const escapeCSV = (value) => {
+    if (!value) return '';
+    const stringValue = String(value);
+    if (/[",\n]/.test(stringValue)) {
+      return `"${stringValue.replace(/"/g, '""')}"`;
+    }
+    return stringValue;
   };
+
+  // Generate CSV from the selected listing
+  const exportToCSV = async () => {
+    if (!selected) return;
+
+    try {
+      const headers = [
+        'Title',
+        'Platform',
+        'Price',
+        'Description',
+        'Keywords',
+        'Additional Info',
+        'Created At',
+      ];
+
+      const keywords = Array.isArray(selected.keywords)
+        ? selected.keywords.join('; ')
+        : JSON.parse(selected.keywords || '[]').join('; ');
+
+      const row = [
+        escapeCSV(selected.title),
+        escapeCSV(selected.platform),
+        escapeCSV(selected.price),
+        escapeCSV(selected.description),
+        escapeCSV(keywords),
+        escapeCSV(selected.additionalinfo),
+        escapeCSV(new Date(selected.createdat).toLocaleString()),
+      ];
+
+      const csvString = headers.join(',') + '\n' + row.join(',');
+      const fileName = `listing_${selected.id}.csv`;
+      const fileUri = FileSystem.documentDirectory + fileName;
+
+      await FileSystem.writeAsStringAsync(fileUri, csvString, { encoding: 'utf8' });
+
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert('Error', 'Sharing is not available on this device');
+        return;
+      }
+
+      await Sharing.shareAsync(fileUri, {
+        mimeType: 'text/csv',
+        dialogTitle: 'Export Listing',
+        UTI: 'public.comma-separated-values-text',
+      });
+    } catch (err) {
+      console.error('Export error:', err);
+      Alert.alert('Export Failed', 'Could not save CSV file.');
+    }
+  };
+
+  const renderListingItem = ({ item }) => (
+    <TouchableOpacity style={styles.listingCard} onPress={() => openListing(item)}>
+      <View style={styles.listingContent}>
+        <Text style={styles.listingTitle} numberOfLines={1}>{item.title}</Text>
+        <Text style={styles.listingPlatform}>{item.platform}</Text>
+        <Text style={styles.listingPrice}>{item.price ? `${item.price}` : ''}</Text>
+        <Text style={styles.listingDate}>{new Date(item.createdat).toLocaleString()}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color={COLORS.text} />
+    </TouchableOpacity>
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
       <View style={styles.container}>
-        {/* Profile Header */}
-        <View style={styles.profileSection}>
-          <Image source={require('../../assets/icon.png')} style={styles.avatar} />
-          <View style={styles.profileText}>
-            <Text style={styles.greeting}>Welcome back,</Text>
-            <Text style={styles.userName}>{user.name}</Text>
-          </View>
+        {/* App Logo */}
+        <View style={styles.logoSection}>
+          <Image source={require('../../assets/icon.png')} style={styles.logo} />
         </View>
 
         {/* Quick Actions */}
@@ -138,42 +191,37 @@ export default function HomeScreen({ navigation, route }) {
             </TouchableOpacity>
 
             {selected && (
-              <>
-                {selected.imagepath && (
-                  <Image
-                    source={{ uri: `https://listai-backend.onrender.com${selected.imagepath}` }}
-                    style={styles.modalImage}
-                    resizeMode="cover"
-                  />
-                )}
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>{selected.title}</Text>
+                <Text style={styles.modalPlatform}>{selected.platform}</Text>
 
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>{selected.title}</Text>
-                  <Text style={styles.modalPlatform}>{selected.platform}</Text>
+                <Text style={styles.modalLabel}>Price</Text>
+                <Text style={styles.modalText}>{selected.price ? `${selected.price}` : '—'}</Text>
 
-                  <Text style={styles.modalLabel}>Price</Text>
-                  <Text style={styles.modalText}>{selected.price ? `${selected.price}` : '—'}</Text>
+                <Text style={styles.modalLabel}>Description</Text>
+                <Text style={styles.modalText}>{selected.description}</Text>
 
-                  <Text style={styles.modalLabel}>Description</Text>
-                  <Text style={styles.modalText}>{selected.description}</Text>
-
-                  <Text style={styles.modalLabel}>Keywords</Text>
-                  <View style={styles.keywordsContainer}>
-                    {Array.isArray(selected.keywords)
-                      ? selected.keywords.map((kw, idx) => (
-                          <View key={idx} style={styles.keywordTag}>
-                            <Text style={styles.keywordText}>{kw}</Text>
-                          </View>
-                        ))
-                      : selected.keywords &&
-                        JSON.parse(selected.keywords).map((kw, idx) => (
-                          <View key={idx} style={styles.keywordTag}>
-                            <Text style={styles.keywordText}>{kw}</Text>
-                          </View>
-                        ))}
-                  </View>
+                <Text style={styles.modalLabel}>Keywords</Text>
+                <View style={styles.keywordsContainer}>
+                  {Array.isArray(selected.keywords)
+                    ? selected.keywords.map((kw, idx) => (
+                        <View key={idx} style={styles.keywordTag}>
+                          <Text style={styles.keywordText}>{kw}</Text>
+                        </View>
+                      ))
+                    : selected.keywords &&
+                      JSON.parse(selected.keywords).map((kw, idx) => (
+                        <View key={idx} style={styles.keywordTag}>
+                          <Text style={styles.keywordText}>{kw}</Text>
+                        </View>
+                      ))}
                 </View>
-              </>
+
+                {/* Download CSV Button */}
+                <TouchableOpacity style={styles.downloadButton} onPress={exportToCSV}>
+                  <Text style={styles.downloadButtonText}>📥 Share File</Text>
+                </TouchableOpacity>
+              </View>
             )}
           </ScrollView>
         </Modal>
@@ -182,15 +230,16 @@ export default function HomeScreen({ navigation, route }) {
   );
 }
 
-// --- Styles (unchanged) ---
+// --- Styles (updated with bottom padding) ---
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
-  container: { flex: 1, paddingHorizontal: SIZES.screenPadding, paddingTop: 10 },
-  profileSection: { flexDirection: 'row', alignItems: 'center', marginBottom: 24 },
-  avatar: { width: 60, height: 60, borderRadius: 30, marginRight: 16, borderWidth: 2, borderColor: COLORS.primary },
-  profileText: { flex: 1 },
-  greeting: { fontSize: 14, color: COLORS.text, opacity: 0.6, marginBottom: 2 },
-  userName: { fontSize: 20, fontWeight: '700', color: COLORS.text },
+  safeArea: { flex: 1, paddingTop: 5, backgroundColor: COLORS.background },
+  container: {
+    flex: 1,
+    paddingHorizontal: SIZES.screenPadding,
+    paddingTop: 10
+  },
+  logoSection: { alignItems: 'center', marginBottom: 24 },
+  logo: { width: 80, height: 80, borderRadius: 20 },
   quickActions: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 28 },
   actionButton: { flex: 1, marginHorizontal: 6, backgroundColor: COLORS.primary, borderRadius: SIZES.buttonRadius, paddingVertical: 14, alignItems: 'center', shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 4 },
   secondaryButton: { backgroundColor: COLORS.accent, shadowColor: COLORS.accent },
@@ -200,8 +249,7 @@ const styles = StyleSheet.create({
   seeAll: { fontSize: 14, color: COLORS.primary, fontWeight: '500' },
   listContainer: { paddingBottom: 20 },
   listingCard: { flexDirection: 'row', backgroundColor: COLORS.card, borderRadius: SIZES.cardRadius, padding: 12, marginBottom: 12, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  listingImage: { width: 60, height: 60, borderRadius: 12, backgroundColor: COLORS.border },
-  listingContent: { flex: 1, marginLeft: 12, marginRight: 8 },
+  listingContent: { flex: 1, marginRight: 8 },
   listingTitle: { fontSize: 16, fontWeight: '600', color: COLORS.text, marginBottom: 4 },
   listingPlatform: { fontSize: 14, color: COLORS.primary, marginBottom: 4 },
   listingPrice: { fontSize: 14, fontWeight: '700', color: COLORS.success, marginBottom: 4 },
@@ -211,7 +259,6 @@ const styles = StyleSheet.create({
   modalContainer: { flex: 1, backgroundColor: COLORS.background },
   closeButton: { padding: 12, backgroundColor: COLORS.primary, alignItems: 'center' },
   closeText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  modalImage: { width: '100%', height: 250, marginTop: 12, borderRadius: 12 },
   modalContent: { padding: 16, paddingTop: 12 },
   modalTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: 6 },
   modalPlatform: { fontSize: 16, color: COLORS.primary, marginBottom: 6 },
@@ -220,4 +267,12 @@ const styles = StyleSheet.create({
   keywordsContainer: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 6 },
   keywordTag: { backgroundColor: COLORS.primary + '20', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginRight: 8, marginBottom: 8 },
   keywordText: { fontSize: 12, color: COLORS.primary },
+  downloadButton: {
+    backgroundColor: COLORS.success,
+    borderRadius: SIZES.buttonRadius,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  downloadButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 });

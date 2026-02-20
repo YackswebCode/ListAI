@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+// src/screens/SplashScreen.js
 import * as SplashScreen from 'expo-splash-screen';
-import { COLORS, SIZES } from '../utils/theme';
+import { useEffect } from 'react';
+import { Image, StyleSheet, Text, View } from 'react-native';
+import { COLORS } from '../utils/theme';
 
 // Keep splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -15,11 +16,9 @@ export default function SplashScreenComponent({ navigation }) {
       } catch (e) {
         console.warn(e);
       } finally {
-        // Hide splash and navigate to appropriate screen
+        // Hide splash and navigate directly to Dashboard (HomeScreen inside Tab Navigator)
         await SplashScreen.hideAsync();
-        // Check if user is logged in (we'll implement later)
-        // For now, go to Onboarding
-        navigation.replace('Onboarding');
+        navigation.replace('Dashboard'); // <-- changed from 'Onboarding'
       }
     }
     prepare();
@@ -28,10 +27,10 @@ export default function SplashScreenComponent({ navigation }) {
   return (
     <View style={styles.container}>
       <Image
-        source={require('../../assets/icon.png')} // Use your app icon or logo
+        source={require('../../assets/icon.png')} // App logo
         style={styles.logo}
       />
-      <Text style={styles.title}>Welcome to ListAI </Text>
+      <Text style={styles.title}>Welcome to ListAI</Text>
     </View>
   );
 }

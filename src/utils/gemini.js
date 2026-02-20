@@ -1,28 +1,45 @@
-// src/utils/gemini.js
+
+import * as FileSystem from 'expo-file-system/legacy'; // ✅ FIXED
 import { Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system';
 import { GEMINI_API_KEY } from './config';
 
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 // Helper to convert image URI to base64
+
 const imageToBase64 = async (uri) => {
-  if (Platform.OS === 'web') {
-    const response = await fetch(uri);
-    const blob = await response.blob();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result.split(',')[1];
-        resolve(base64);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
+  try {
+    if (!uri) throw new Error('Invalid image URI');
+
+    // 🌐 Web
+    if (Platform.OS === 'web') {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+
+      return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = reader.result.split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    // 📱 Mobile (Android / iOS)
+    if (!FileSystem?.readAsStringAsync) {
+      throw new Error('FileSystem not available');
+    }
+
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: 'base64', // ✅ FIXED HERE
     });
-  } else {
-    return await FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+
+    return base64;
+  } catch (err) {
+    console.error('Base64 conversion error:', err);
+    throw err;
   }
 };
 

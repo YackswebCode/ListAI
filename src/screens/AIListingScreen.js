@@ -1,4 +1,3 @@
-// src/screens/AIListingScreen.js
 import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
@@ -15,7 +14,7 @@ import {
   View,
 } from 'react-native';
 import Button from '../components/Button';
-import { saveListing } from '../utils/database'; // uses database.js
+import { saveListing } from '../utils/database';
 import { generateListingFromImage } from '../utils/gemini';
 import { COLORS, SIZES } from '../utils/theme';
 
@@ -125,7 +124,7 @@ export default function AIListingScreen({ route, navigation }) {
     try {
       const payload = {
         title: generated.title || '',
-        price: generated.price || '',          // ADDED price
+        price: generated.price || '',
         description: generated.description || '',
         keywords: generated.keywords || [],
         platform,
@@ -133,7 +132,7 @@ export default function AIListingScreen({ route, navigation }) {
         imageUri: imageUri || null,
       };
 
-      await saveListing(payload); // <-- database.js POST
+      await saveListing(payload);
       Alert.alert('Success', 'Listing saved successfully.');
 
       setImageUri(null);
@@ -255,13 +254,13 @@ export default function AIListingScreen({ route, navigation }) {
 
 // --- Styles (unchanged) ---
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1, paddingTop: 15, backgroundColor: COLORS.background },
   contentContainer: { padding: SIZES.screenPadding, paddingBottom: 40 },
   title: { fontSize: 24, fontWeight: '700', color: COLORS.text, marginBottom: 20, textAlign: 'center' },
   section: { marginBottom: 25 },
   sectionTitle: { fontSize: 16, fontWeight: '600', color: COLORS.text, marginBottom: 10 },
   imageButtons: { flexDirection: 'row', justifyContent: 'space-between' },
-  imageButton: { flex: 1, backgroundColor: COLORS.danger, borderWidth: 1, borderColor: COLORS.border, borderRadius: SIZES.buttonRadius, paddingVertical: 12, marginHorizontal: 4 },
+  imageButton: { flex: 1, backgroundColor: COLORS.accent, borderWidth: 1, borderColor: COLORS.border, borderRadius: SIZES.buttonRadius, paddingVertical: 12, marginHorizontal: 4 },
   imagePreviewContainer: { alignItems: 'center', position: 'relative' },
   imagePreview: { width: '100%', height: 220, borderRadius: SIZES.cardRadius, borderWidth: 1, borderColor: COLORS.border },
   removeImage: { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.5)', width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center' },
@@ -279,7 +278,7 @@ const styles = StyleSheet.create({
   resultText: { fontSize: 15, color: COLORS.text, lineHeight: 22 },
   actionButtons: { flexDirection: 'row', justifyContent: 'space-between' },
   saveButton: { flex: 1, backgroundColor: COLORS.success, paddingVertical: 14, borderRadius: SIZES.buttonRadius, marginHorizontal: 4 },
-  resetButton: { flex: 1, backgroundColor: COLORS.danger, borderWidth: 1, borderColor: COLORS.border, paddingVertical: 14, borderRadius: SIZES.buttonRadius, marginHorizontal: 4 },
+  resetButton: { flex: 1, backgroundColor: COLORS.accent, borderWidth: 1, borderColor: COLORS.border, paddingVertical: 14, borderRadius: SIZES.buttonRadius, marginHorizontal: 4 },
   keywordsContainer: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 6 },
   keywordTag: { backgroundColor: COLORS.primary + '20', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginRight: 8, marginBottom: 8 },
   keywordText: { color: COLORS.primary, fontSize: 13, fontWeight: '500' },

@@ -1,10 +1,12 @@
 // src/screens/ListingsScreen.js
-import { useEffect, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Image,
   Modal,
   ScrollView,
   StyleSheet,
@@ -12,8 +14,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { getAllListings } from '../utils/database'; // <-- import from database.js
+import { getAllListings } from '../utils/database';
 import { COLORS, SIZES } from '../utils/theme';
+
+const TAB_BAR_HEIGHT = 65; // match your bottom tab height
 
 export default function ListingsScreen() {
   const [listings, setListings] = useState([]);
@@ -21,19 +25,21 @@ export default function ListingsScreen() {
   const [selected, setSelected] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
 
-  // Load listings on mount
-  useEffect(() => {
-    const loadListings = async () => {
-      setLoading(true);
-      const data = await getAllListings();
-      if (!data || data.length === 0) {
-        Alert.alert('Info', 'No listings found.');
-      }
-      setListings(data);
-      setLoading(false);
-    };
-    loadListings();
-  }, []);
+  // Refresh data every time the screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      const loadListings = async () => {
+        setLoading(true);
+        const data = await getAllListings();
+        if (!data || data.length === 0) {
+          Alert.alert('Info', 'No listings found.');
+        }
+        setListings(data);
+        setLoading(false);
+      };
+      loadListings();
+    }, [])
+  );
 
   const openListing = (item) => {
     setSelected(item);
@@ -45,27 +51,79 @@ export default function ListingsScreen() {
     setModalVisible(false);
   };
 
-  const renderCard = ({ item }) => {
-    const imageUri = item.imagepath ? `https://listai-backend.onrender.com${item.imagepath}` : null;
-
-    return (
-      <TouchableOpacity style={styles.card} onPress={() => openListing(item)}>
-        {imageUri && (
-          <Image
-            source={{ uri: imageUri }}
-            style={styles.cardImage}
-            resizeMode="cover"
-          />
-        )}
-        <View style={styles.cardContent}>
-          <Text style={styles.cardTitle}>{item.title}</Text>
-          <Text style={styles.cardPlatform}>{item.platform}</Text>
-          <Text style={styles.cardPrice}>{item.price ? `${item.price}` : ''}</Text>
-          <Text style={styles.cardDate}>{new Date(item.createdat).toLocaleString()}</Text>
-        </View>
-      </TouchableOpacity>
-    );
+  // ✅ Proper CSV escape function
+  const escapeCSV = (value) => {
+    if (!value) return '';
+    const stringValue = String(value);
+    if (/[",\n]/.test(stringValue)) {
+      return `"${stringValue.replace(/"/g, '""')}"`;
+    }
+    return stringValue;
   };
+
+  const exportToCSV = async () => {
+    if (!selected) return;
+
+    try {
+      const headers = [
+        'Title',
+        'Platform',
+        'Price',
+        'Description',
+        'Keywords',
+        'Additional Info',
+        'Created At',
+      ];
+
+      const keywords = Array.isArray(selected.keywords)
+        ? selected.keywords.join('; ')
+        : JSON.parse(selected.keywords || '[]').join('; ');
+
+      const row = [
+        escapeCSV(selected.title),
+        escapeCSV(selected.platform),
+        escapeCSV(selected.price),
+        escapeCSV(selected.description),
+        escapeCSV(keywords),
+        escapeCSV(selected.additionalinfo),
+        escapeCSV(new Date(selected.createdat).toLocaleString()),
+      ];
+
+      const csvString = headers.join(',') + '\n' + row.join(',');
+      const fileName = `listing_${selected.id}.csv`;
+      const fileUri = FileSystem.documentDirectory + fileName;
+
+      await FileSystem.writeAsStringAsync(fileUri, csvString, { encoding: 'utf8' });
+
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert('Error', 'Sharing is not available on this device');
+        return;
+      }
+
+      await Sharing.shareAsync(fileUri, {
+        mimeType: 'text/csv',
+        dialogTitle: 'Export Listing',
+        UTI: 'public.comma-separated-values-text',
+      });
+    } catch (err) {
+      console.error('Export error:', err);
+      Alert.alert('Export Failed', 'Could not save CSV file.');
+    }
+  };
+
+  const renderCard = ({ item }) => (
+    <TouchableOpacity style={styles.card} onPress={() => openListing(item)}>
+      <View style={styles.cardContent}>
+        <Text style={styles.cardTitle}>{item.title}</Text>
+        <Text style={styles.cardPlatform}>{item.platform}</Text>
+        <Text style={styles.cardPrice}>{item.price ? `${item.price}` : ''}</Text>
+        <Text style={styles.cardDate}>
+          {new Date(item.createdat).toLocaleString()}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.container}>
@@ -86,7 +144,6 @@ export default function ListingsScreen() {
         />
       )}
 
-      {/* Full Listing Modal */}
       <Modal visible={modalVisible} animationType="slide" onRequestClose={closeModal}>
         <ScrollView style={styles.modalContainer}>
           <TouchableOpacity onPress={closeModal} style={styles.closeButton}>
@@ -94,41 +151,32 @@ export default function ListingsScreen() {
           </TouchableOpacity>
 
           {selected && (
-            <>
-              {selected.imagepath && (
-                <Image
-                  source={{ uri: `https://listai-backend.onrender.com${selected.imagepath}` }}
-                  style={styles.modalImage}
-                  resizeMode="cover"
-                />
-              )}
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>{selected.title}</Text>
+              <Text style={styles.modalPlatform}>{selected.platform}</Text>
 
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>{selected.title}</Text>
-                <Text style={styles.modalPlatform}>{selected.platform}</Text>
+              <Text style={styles.modalLabel}>Price</Text>
+              <Text style={styles.modalText}>{selected.price || '—'}</Text>
 
-                <Text style={styles.modalLabel}>Price</Text>
-                <Text style={styles.modalText}>{selected.price ? `${selected.price}` : '—'}</Text>
+              <Text style={styles.modalLabel}>Description</Text>
+              <Text style={styles.modalText}>{selected.description}</Text>
 
-                <Text style={styles.modalLabel}>Description</Text>
-                <Text style={styles.modalText}>{selected.description}</Text>
-
-                <Text style={styles.modalLabel}>Keywords</Text>
-                <View style={styles.keywordsContainer}>
-                  {Array.isArray(selected.keywords)
-                    ? selected.keywords.map((kw, idx) => (
-                        <View key={idx} style={styles.keywordTag}>
-                          <Text style={styles.keywordText}>{kw}</Text>
-                        </View>
-                      ))
-                    : JSON.parse(selected.keywords || '[]').map((kw, idx) => (
-                        <View key={idx} style={styles.keywordTag}>
-                          <Text style={styles.keywordText}>{kw}</Text>
-                        </View>
-                      ))}
-                </View>
+              <Text style={styles.modalLabel}>Keywords</Text>
+              <View style={styles.keywordsContainer}>
+                {(Array.isArray(selected.keywords)
+                  ? selected.keywords
+                  : JSON.parse(selected.keywords || '[]')
+                ).map((kw, idx) => (
+                  <View key={idx} style={styles.keywordTag}>
+                    <Text style={styles.keywordText}>{kw}</Text>
+                  </View>
+                ))}
               </View>
-            </>
+
+              <TouchableOpacity style={styles.downloadButton} onPress={exportToCSV}>
+                <Text style={styles.downloadButtonText}>📥 Share File</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </ScrollView>
       </Modal>
@@ -136,19 +184,20 @@ export default function ListingsScreen() {
   );
 }
 
-// --- Styles ---
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: {
+    flex: 1,
+    paddingTop: 15,
+    backgroundColor: COLORS.background
+  },
   listContent: { padding: SIZES.screenPadding },
   card: {
     backgroundColor: COLORS.card,
     borderRadius: SIZES.cardRadius,
     marginBottom: 12,
-    overflow: 'hidden',
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  cardImage: { width: '100%', height: 180, borderRadius: 12, marginTop: 8 },
   cardContent: { padding: 12 },
   cardTitle: { fontSize: 16, fontWeight: '600', color: COLORS.text, marginBottom: 4 },
   cardPlatform: { fontSize: 14, color: COLORS.primary, marginBottom: 4 },
@@ -161,7 +210,6 @@ const styles = StyleSheet.create({
   modalContainer: { flex: 1, backgroundColor: COLORS.background },
   closeButton: { padding: 12, backgroundColor: COLORS.primary, alignItems: 'center' },
   closeText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  modalImage: { width: '100%', height: 250, marginTop: 12, borderRadius: 12 },
   modalContent: { padding: 16 },
   modalTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: 6 },
   modalPlatform: { fontSize: 16, color: COLORS.primary, marginBottom: 6 },
@@ -177,4 +225,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   keywordText: { fontSize: 12, color: COLORS.primary },
+  downloadButton: {
+    backgroundColor: COLORS.success,
+    borderRadius: SIZES.buttonRadius,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  downloadButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 });
